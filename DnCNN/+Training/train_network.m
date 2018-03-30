@@ -40,6 +40,7 @@ function net = train_network(prj)
   % train network
   % use for-loop training to save fully-trained network for evaluation for each epoch
   %   hence the MaxEpochs in trainingOptions is set to 1
+  % This might be time-consuming since gather() works very slowly.
   for i = 1:prj.train.MaxEpochs
     % read trained cache if exists
     cur_cache_net = strcat(prj.prefix.net,num2str(i),'.mat');
@@ -51,12 +52,11 @@ function net = train_network(prj)
         if ~exist(next_cache_net,'file')
           error(msgID,[next_cache_net,' missing']);
         end
-        load(next_cache_net,'net');
+        net = Utilities.load_net(next_cache_net,'net');
       end
       
       % set training option
-      training_opts = trainingOptions('sgdm',...
-        'Momentum',prj.train.Momentum,...
+      training_opts = trainingOptions(prj.train.solver,...
         'InitialLearnRate',cur_lr,...
         'GradientThreshold',prj.train.GradientThreshold,...
         'GradientThresholdMethod',prj.train.GradientThresholdMethod,...
@@ -108,4 +108,3 @@ function imds = load_training_datastore(datapath,imdsinfo,noiseinfo,varargin)
     'ChannelFormat',imdsinfo.ChannelFormat,...
     'DispatchInBackground',true);
 end
-
