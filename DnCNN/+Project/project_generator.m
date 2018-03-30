@@ -43,6 +43,7 @@ function prj = project_generator(src_prj,varargin)
   prj.path.root = fullfile('Results',...
     strcat(prj.noise.type,'_std',num2str(prj.noise.std),'_mean',num2str(prj.noise.mean)),...
     strcat('depth',num2str(prj.net.depth),'_width',num2str(prj.net.width),'_',prj.net.relutype),...
+    strcat(prj.train.solver),...
     strcat('learnrate',num2str(prj.train.InitialLearnRate),'_drop',num2str(prj.train.LearnRateDropFactor),'_period',num2str(prj.train.LearnRateDropPeriod)),...
     strcat('gradclip_',prj.train.GradientThresholdMethod,'_',num2str(prj.train.GradientThreshold)));
   prj.path.Checkpoint = fullfile(prj.path.root,'Checkpoints');
@@ -90,8 +91,7 @@ function defaults = get_defaults()
 
   
   % training setting
-  prj.train.solver = 'sgdm'; % sgdm
-  prj.train.Momentum = 0.9; 
+  prj.train.solver = 'sgdm'; % sgdm | adam
   
   prj.train.GradientThreshold = 0.005;
   prj.train.GradientThresholdMethod = 'l2norm'; % l2norm | global-l2norm

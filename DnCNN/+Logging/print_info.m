@@ -88,6 +88,11 @@ function print_property(info, name, varargin)
     end
   end
   
+  % join cur_info together when it's a string array
+  while numel(cur_info) ~= 1 
+    cur_info = join(cur_info,'\t');
+  end
+  
   % print work goes here
   msg = sprintf("%s :\t%s\n",name, cur_info);
   Logging.print(msg,varargin{:});

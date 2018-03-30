@@ -22,11 +22,6 @@ function print(msg,varargin)
   
   msg = string(msg);
   
-  % join msg together when it's a string array
-  while numel(msg) ~= 1 
-    msg = join(msg,'\t');
-  end
-  
   if p.Results.logfile == "CONSOLE"
     fprintf(msg);
   else

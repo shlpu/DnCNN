@@ -17,6 +17,9 @@ function print_project_info(prj, varargin)
   Logging.print_line('Net Info',varargin{:});
   Logging.print_info(prj.net,varargin{:});
   
+  Logging.print_line('Training Data Info',varargin{:});
+  Logging.print_info(prj.imds,varargin{:});
+  
   Logging.print_line('Path Info',varargin{:});
   Logging.print_info(prj.path,varargin{:});
   
