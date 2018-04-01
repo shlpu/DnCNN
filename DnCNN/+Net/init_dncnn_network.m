@@ -1,4 +1,4 @@
-function layers = init_network(image_size,varargin)
+function layers = init_dncnn_network(image_size,varargin)
     % Initialize the layers of DnCNN network proposed by [1]
     %
     % Return:
@@ -42,6 +42,7 @@ function layers = init_network(image_size,varargin)
     %   [3] Simonyan, K., & Zisserman, A. (2014). Very Deep Convolutional Networks for Large-Scale Image Recognition, 1–14. https://doi.org/10.1016/j.infsof.2008.09.005
     
     
+    
     % global settings -- no need to change unless necessary
     conv_size = [3,3]; % size of convolutional kernel
     crelu_ceil = 10; % threshold of clipped ReLU layer
@@ -53,11 +54,13 @@ function layers = init_network(image_size,varargin)
     % ReLU type
     switch string(options.relu_type)
       case "relu"
-        get_relulayer = @() reluLayer;
+        get_relulayer = @(varargin) reluLayer(varargin{:});
       case "clipped"
-        get_relulayer = @() clippedReluLayer(crelu_ceil);
+        get_relulayer = @(varargin) clippedReluLayer(crelu_ceil,varargin{:});
+        options.relu_type = "clipped_relu"; % for create layer name
       case "leaky"
-        get_relulayer = @() leakyReluLayer(lrelu_theta);
+        get_relulayer = @(varargin) leakyReluLayer(lrelu_theta,varargin{:});
+        options.relu_type = "leaky_relu"; % for create layer name
       otherwise
         err_msg = 'relu_type should be one of the following: "relu","leaky","clipped"';
         error(prj.msgID.init,err_msg);
@@ -67,6 +70,7 @@ function layers = init_network(image_size,varargin)
     switch string(options.loss_function)
       case "mse"
         get_regressionlayer = @() regressionLayer;
+        options.loss_function = 'mse_reg'; % for create layer name
       otherwise
         err_msg = 'loss_function should be one of the following: "mse"';
         error(msgID,err_msg);
@@ -81,7 +85,8 @@ function layers = init_network(image_size,varargin)
     
     % define layers
     % input layer
-    input_layer = imageInputLayer(image_size,'Normalization','zerocenter');
+    input_layer = imageInputLayer(image_size,...
+      'Normalization','zerocenter');
 
     % Layer type 1: conv+ReLu
     L1 = [...
@@ -112,12 +117,29 @@ function layers = init_network(image_size,varargin)
     
     
     % initializing network
+    num_L2 = net_depth-2;
     layers = [...
         input_layer;...
         L1;...
-        repmat(L2,net_depth-2,1);...
+        repmat(L2, num_L2,1);...
         L3;...
         get_regressionlayer()];
+      
+    % add layer names
+    layers(1).Name = 'input';
+    layers(2).Name = 'conv1';
+    layers(3).Name = strcat(options.relu_type,'2');
+    begin_idx = length(input_layer) + length(L1);
+    end_idx = begin_idx + num_L2*length(L2);
+    for i = 1:num_L2
+      cur_idx = begin_idx + (i-1)*length(L2) + 1;
+      layers(cur_idx).Name = strcat('conv',num2str(cur_idx));
+      layers(cur_idx+1).Name = strcat('bn',num2str(cur_idx+1));
+      layers(cur_idx+2).Name = strcat(options.relu_type,num2str(cur_idx+2));
+    end
+    layers(end_idx+1).Name = strcat('conv',num2str(end_idx+1));
+    
+    layers(end).Name = strcat(options.loss_function);
 end
 
 function options = parse_input(varargin)
