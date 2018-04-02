@@ -35,10 +35,11 @@ function [test_psnr,test_ssim] = batch_cal_psnr_ssim(checkpointpath,datapath,noi
   input_imgs = cellfun(@(x)imnoise(x,'gaussian',0,(noiseinfo.std/255)^2),...
                           ref_imgs,'UniformOutput',false);
   
-  % read net files
+  % read and sort net files
   net_files = dir(fullfile(checkpointpath,'*mat'));
-  [~,index] = sort({net_files.date});
   net_files = {net_files.name};
+  epoches = cellfun(@(x)get_epoch(x),net_files);
+  [~,index] = sort(epoches);
   net_files = net_files(index);
   
   % test for each epoch
@@ -77,4 +78,9 @@ function print_psnr_ssim(src_psnr,src_ssim,varargin)
   [max_ssim,i] = max(src_ssim);
   msg = sprintf("Max SSIM %.3f at epoch %d (total %d)\n",max_ssim,i,numel(src_psnr));
   Logging.print(msg,varargin{:});
+end
+
+function epoch = get_epoch(filename)
+  [startIndex,endIndex] = regexp(filename,'\d*');
+  epoch = str2num(filename(startIndex:endIndex));
 end
