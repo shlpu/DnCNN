@@ -25,9 +25,9 @@ function prj = project_generator(src_prj,varargin)
   if prj.imds.use_augmentation
     prj.imds.augmenter = imageDataAugmenter( ...
         'RandXReflection',true, ...
-        'RandXScale',[0.5 2], ...
+        'RandXScale',[0.7 1], ...
         'RandYReflection',true, ...
-        'RandYScale',[0.5 2],...
+        'RandYScale',[0.7 1],...
         'RandRotation',[0,360]);
   else
     prj.imds.augmenter = 'none';
@@ -78,7 +78,7 @@ function defaults = get_defaults()
   
   % imagedatastore setting
   
-  prj.imds.PatchSize = 50;
+  prj.imds.PatchSize = 40;
   prj.imds.PatchesPerImage = 512;
   prj.imds.use_augmentation = true;
     
@@ -88,24 +88,25 @@ function defaults = get_defaults()
   prj.net.width = 64;
   prj.net.relutype = 'leaky'; % relu | clipped | leaky
   prj.net.loss_function = 'mse'; % mse 
+  prj.net.ssim_sigma = 5;
 
   
   % training setting
-  prj.train.solver = 'sgdm'; % sgdm | adam
+  prj.train.solver = 'adam'; % sgdm | adam
   
-  prj.train.GradientThreshold = 0.005;
+  prj.train.GradientThreshold = inf;
   prj.train.GradientThresholdMethod = 'l2norm'; % l2norm | global-l2norm
   prj.train.MaxEpochs = 50; 
   
   prj.train.MiniBatchSize = 128;
   
-  prj.train.InitialLearnRate = 0.1;
-  prj.train.LearnRateDropFactor = 0.87;
-  prj.train.LearnRateDropPeriod = 1;
+  prj.train.InitialLearnRate = 1e-3;
+  prj.train.LearnRateDropFactor = 0.1;
+  prj.train.LearnRateDropPeriod = 30;
   
   prj.train.Verbose = true; 
   prj.train.Plots = false;
-  prj.train.VerboseFrequency = 10;
+  prj.train.VerboseFrequency = 5;
   
   defaults = prj;
 end

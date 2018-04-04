@@ -148,11 +148,13 @@ classdef noiseImageDatastore < ...
           self.PatchSize = [options.PatchSize self.NumberOfChannels];
         end
 
-        self.augmentOutputSize = self.PatchSize(1:2);
         self.GaussianNoiseLevel = options.GaussianNoiseLevel;
 
         self.imds = imds.copy(); % Don't mess with state of imds input
         self.ImageAugmenter = options.DataAugmentation;
+        
+        tmp_img = imds.preview();
+        self.augmentOutputSize = [size(tmp_img,1),size(tmp_img,2)];
         
         self.DispatchInBackground = options.DispatchInBackground;
         self.MiniBatchSize = 128;
@@ -313,6 +315,7 @@ classdef noiseImageDatastore < ...
                 end
                 
                 im = im2single(im);
+                im = self.applyAugmentationPipeline(im);
                 imNumPatches = numPatches(imIndex);
                 
                 rowLocations = randi(max(size(im,1)-actualPatchSize(1),1), imNumPatches, 1);
@@ -323,7 +326,7 @@ classdef noiseImageDatastore < ...
                     patch = im(rowLocations(index):rowLocations(index)+actualPatchSize(1)-1,...
                         colLocations(index):colLocations(index)+actualPatchSize(2)-1, :);
                       
-                    patch = self.applyAugmentationPipeline(patch);
+%                     patch = self.applyAugmentationPipeline(patch);
                     
                     if isNoiseRange
                         noiseSigma = min(self.GaussianNoiseLevel) + ...
