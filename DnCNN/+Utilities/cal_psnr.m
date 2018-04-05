@@ -18,7 +18,7 @@ function [net_psnr,mean_psnr] = cal_psnr(net,ref_imgs,input_imgs)
 % Note:
 %   1. each image of ref_imgs and input_imgs should be corresponded
   
-  func = @(input,clean) psnr(denoiseImage(input,net),clean);
+  func = @(input,clean) psnr(Utilities.denoiseImage(input,net),clean);
   net_psnr = cellfun(func,input_imgs,ref_imgs);
   mean_psnr = mean(net_psnr);
   

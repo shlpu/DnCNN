@@ -10,7 +10,7 @@ function speeds = test_speed(net,varargin)
     fprintf("%d...",imgsizes(i));
     for j = 1:imgnum
       img = randn([imgsizes(i),imgsizes(i),net.Layers(1).InputSize(3)]);
-      denoiseImage(img,net);
+      Utilities.denoiseImage(img,net);
     end
     time_used = toc;
     speeds(i) = imgnum/time_used;

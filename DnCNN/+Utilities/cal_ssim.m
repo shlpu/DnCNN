@@ -18,7 +18,7 @@ function [net_ssim, mean_ssim] = cal_ssim(net,ref_imgs,input_imgs)
 % Note:
 %   1. each image of ref_imgs and input_imgs should be corresponded
   
-  func = @(input,clean) ssim(denoiseImage(input,net),clean);
+  func = @(input,clean) ssim(Utilities.denoiseImage(input,net),clean);
   net_ssim = cellfun(func,input_imgs,ref_imgs);
   mean_ssim = mean(net_ssim);
   
