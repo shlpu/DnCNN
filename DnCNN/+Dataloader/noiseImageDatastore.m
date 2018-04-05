@@ -3,19 +3,16 @@
 %   This is an enhanced implementation of built-in denoisingImageDatastore class.
 %
 %   Differences from built-in denoisingImageDatastore:
-%     1. support impulsive noise
-%     2. support data augmentation
+%     1. support data augmentation
 %
 %   noiseImageDatastore properties:
 %       PatchesPerImage         - Number of random patches to be extracted per image
 %       PatchSize               - Size of the image patches
-%       GaussianNoiseLevel      - Standard deviation of Gaussian noise
-%       NoiseType               - Type of noise
-%       ImpulsiveNoiseDensity   - Value and density of impulsive noise
 %       ChannelFormat           - Channel format of output noisy patches
 %       MiniBatchSize           - Number of patches returned in each read
 %       NumObservations         - Total number of patches in an epoch
 %       DispatchInBackground    - Whether background dispatch is used
+%       ImageAugmenter          - ImageDataAugmenter
 %
 %   noiseImageDatastore methods:
 %       noiseImageDatastore     - Construct a noiseImageDatastore
@@ -28,7 +25,7 @@
 %       reset                   - Resets datastore to the start of the data
 %       shuffle                 - Shuffles the observations in the datastore
 
-classdef noiseImageDatastore < ...
+classdef (Abstract) noiseImageDatastore < ...
         matlab.io.Datastore &...
         matlab.io.datastore.MiniBatchable &...
         matlab.io.datastore.Shuffleable & ...
@@ -38,10 +35,8 @@ classdef noiseImageDatastore < ...
     properties (SetAccess = private, GetAccess = public)     
       PatchesPerImage % Number of random patches to be extracted per image
       PatchSize % Size of the image patches
-      NoiseType % Type of noise
-      GaussianNoiseLevel % Standard deviation of Gaussian noise
-      ImpulsiveNoiseLevel % value and density of impulsive noise
       ChannelFormat % Channel format of output noisy patches
+      ImageAugmenter % data augmenter
     end
     
     properties(Dependent)
@@ -58,7 +53,6 @@ classdef noiseImageDatastore < ...
 
     properties (Access = private)
       imds % internal datastore
-      ImageAugmenter % data augmenter
     end
 
     properties (Access = private)        
@@ -103,11 +97,7 @@ classdef noiseImageDatastore < ...
       %   * PatchesPerImage (Parameter)         : integer (default 512)
       %       specifying the number of pathces generated from an image.
       %   * PatchSize  (Parameter)              : integer | vector of two integers (default 50)
-      %       specifying size of the random crops
-      %   * GaussianNoiseLevel (Parameter)      : integer | vector of two integers (default 0.1)
-      %       Standard deviation of Gaussian noise
-      %       the vector of two integers [min_std,max_std] stands for the minimum and maximum of
-      %       Gaussian noise level                         
+      %       specifying size of the random crops                      
       %   * ChannelFormat (Parameter)           : char array | string (defalut 'grayscale') 
       %       Specifies the data channel format as rgb or grayscale
       %   * DataAugmentation (Parameter)        : imageDataAugmenter object (default [])
@@ -130,7 +120,6 @@ classdef noiseImageDatastore < ...
 
         images.internal.requiresNeuralNetworkToolbox(mfilename);
 
-        narginchk(1,13);
 
         validateImagedatastore(imds);
         options = parseInputs(varargin{:});
@@ -148,7 +137,6 @@ classdef noiseImageDatastore < ...
           self.PatchSize = [options.PatchSize self.NumberOfChannels];
         end
 
-        self.GaussianNoiseLevel = options.GaussianNoiseLevel;
 
         self.imds = imds.copy(); % Don't mess with state of imds input
         self.ImageAugmenter = options.DataAugmentation;
@@ -163,6 +151,32 @@ classdef noiseImageDatastore < ...
 
         self.reset();
       end
+        
+    end
+    
+     methods(Static, Hidden = true)
+        function self = loadobj(S)
+            self = denoisingImageDatastore(S.imds, ...
+                'ChannelFormat', S.ChannelFormat, ...
+                'DataAugmentation',S.ImageAugmenter,...
+                'PatchesPerImage', S.PatchesPerImage,...
+                'PatchSize', [S.PatchSize(1) S.PatchSize(2)], ...
+                'BackgroundExecution', S.BackgroundExecution);
+        end
+    end
+    
+    methods (Hidden)
+        function S = saveobj(self)
+            % Serialize denoisingImageDatastore object
+            % Note we that serialize DispatchInBackground under the name
+            % BackgroundExecution to make V1 and V2 loadobj work.
+            S = struct('imds',self.imds,...
+                'ChannelFormat',self.ChannelFormat,...
+                'DataAugmentation',self.ImageAugmenter,...
+                'PatchesPerImage',self.PatchesPerImage,...
+                'PatchSize',self.PatchSize,...
+                'BackgroundExecution',self.DispatchInBackground);            
+        end
         
     end
     
@@ -293,8 +307,6 @@ classdef noiseImageDatastore < ...
             X = cell(totalPatches,1);
             Y = cell(totalPatches,1);
             
-            isNoiseRange = (numel(self.GaussianNoiseLevel) == 2);
-            
             count = 1;
             for imIndex = 1:length(numPatches)
                 
@@ -322,27 +334,23 @@ classdef noiseImageDatastore < ...
                 colLocations = randi(max(size(im,2)-actualPatchSize(2),1), imNumPatches, 1);
                 
                 for index = 1:imNumPatches
-                  % augmentation and add noise
+                  % add noise
                     patch = im(rowLocations(index):rowLocations(index)+actualPatchSize(1)-1,...
                         colLocations(index):colLocations(index)+actualPatchSize(2)-1, :);
                       
-%                     patch = self.applyAugmentationPipeline(patch);
+                    [noisyPatch,residualNoise] = self.generateNoise(patch);
                     
-                    if isNoiseRange
-                        noiseSigma = min(self.GaussianNoiseLevel) + ...
-                            abs(self.GaussianNoiseLevel(2)-self.GaussianNoiseLevel(1))*rand;
-                    else
-                        noiseSigma = self.GaussianNoiseLevel;
-                    end
-                    
-                    residualNoise = noiseSigma * randn(self.PatchSize,'single');
                     Y{count} = residualNoise;
-                    X{count} = patch + residualNoise;
+                    X{count} = noisyPatch;
                     count = count + 1;
                 end
             end
         end
         
+    end
+    
+    methods(Abstract, Access = protected)
+      [noisyPatch,residualNoise] = generateNoise(self,cleanPatch)
     end
 
     methods (Access = private) % copied from augmentedImageDatasotre.m
@@ -461,10 +469,10 @@ end
 
 function options = parseInputs(varargin)
 
-parser = inputParser();
+parser = inputParser;
+parser.KeepUnmatched = true;
 parser.addParameter('PatchesPerImage',512,@validatePatchesPerImage);
 parser.addParameter('PatchSize',50,@validatePatchSize);
-parser.addParameter('GaussianNoiseLevel',0.1,@validateGaussianNoiseLevel);
 parser.addParameter('BackgroundExecution',false,@validateBackgroundExecution);
 parser.addParameter('DispatchInBackground',false,@validateDispatchInBackground);
 parser.addParameter('ChannelFormat','grayscale',@validateChannelFormat);
@@ -473,6 +481,9 @@ parser.addParameter('DataAugmentation','none',@validateAugmentation);
 parser.parse(varargin{:});
 options = manageDispatchInBackgroundNameValue(parser);
 
+if options.DispatchInBackground
+  warning('Matlab:bug','Dispatch in background may throw unexpected error calling cuDNN: CUDNN_STATUS_BAD_PARAM in Matlab R2018a');
+end
 validOptions = {'rgb','grayscale'};
 options.ChannelFormat = validatestring(options.ChannelFormat,validOptions, ...
     mfilename,'ChannelFormat');
@@ -524,23 +535,6 @@ attributes = {'nonempty','scalar', ...
     'finite','nonsparse','nonnan'};
 validateattributes(BackgroundExecution,{'logical'}, attributes,...
     mfilename,'DispatchInBackground');
-
-B = true;
-
-end
-
-function B = validateGaussianNoiseLevel(GaussianNoiseLevel)
-
-supportedClasses = {'single','double'};
-attributes = {'nonempty','real','vector', ...
-    'nonnegative','finite','nonsparse','nonnan','nonzero','>=',0,'<=',1};
-
-validateattributes(GaussianNoiseLevel, supportedClasses, attributes,...
-    mfilename,'GaussianNoiseLevel');
-
-if numel(GaussianNoiseLevel) > 2
-    error(message('images:noiseImageDatastore:invalidNoiseVariance'));
-end
 
 B = true;
 

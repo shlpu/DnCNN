@@ -9,8 +9,7 @@ function prj = project_generator(src_prj,varargin)
   
   p.parse(varargin{:});
   
-  
-  
+
   % path setting
   prj.path.train =  p.Results.traindata;
   prj.path.test = p.Results.testdata;
@@ -33,27 +32,16 @@ function prj = project_generator(src_prj,varargin)
     prj.imds.augmenter = 'none';
   end
   
+  
+  
   % prevent a bug introduced by R2018a
   if ~mod(prj.imds.PatchesPerImage, prj.train.MiniBatchSize) == 0
     error('MATLAB:bug','PatchesPerImage should be divided by MiniBatchSize');
   end
   
-  
-  % generate project information
-  prj.path.root = fullfile('Results',...
-    strcat(prj.noise.type,'_std',num2str(prj.noise.std),'_mean',num2str(prj.noise.mean)),...
-    strcat('depth',num2str(prj.net.depth),'_width',num2str(prj.net.width),'_',prj.net.relutype),...
-    strcat(prj.train.solver),...
-    strcat('learnrate',num2str(prj.train.InitialLearnRate),'_drop',num2str(prj.train.LearnRateDropFactor),'_period',num2str(prj.train.LearnRateDropPeriod)),...
-    strcat('gradclip_',prj.train.GradientThresholdMethod,'_',num2str(prj.train.GradientThreshold)));
-  prj.path.Checkpoint = fullfile(prj.path.root,'Checkpoints');
-  
-  prj.path.results = structfun(@(x)get_result_path(x,prj.path.root), prj.path.test,'UniformOutput',false);
-  prj.prefix.net = fullfile(prj.path.Checkpoint,'epoch_');
-
-  prj.path.log.performance = fullfile(prj.path.root,'performance.txt');
-  prj.path.log.training = fullfile(prj.path.root,'training.txt');
-  
+  % update project information
+  prj = update_path_info(prj);
+  prj.noise = reduce_noise_info(prj.noise);
   
   % create project folder
   create_prj_folder(prj.path,prj.use_cache);
@@ -71,10 +59,11 @@ function defaults = get_defaults()
   prj.path.test.Set12 = fullfile('Data','Test','Set12');
   prj.path.test.Set5 = fullfile('Data','Test','Set5');
   
-  % noise setting
-  prj.noise.type = 'gaussian'; % gaussian
+  % gaussian noise setting
+  prj.noise.type = 'gaussian'; % gaussian | impulse
   prj.noise.std = 25; % for gaussian noise
-  prj.noise.mean = 0; % for gaussian noise
+  prj.noise.Density = 0.05;
+  prj.noise.ValueRange = [0,1];
   
   % imagedatastore setting
   
@@ -84,6 +73,7 @@ function defaults = get_defaults()
     
     
   % net
+  prj.net.type = 'vgg'; % vgg | res
   prj.net.depth = 17;
   prj.net.width = 64;
   prj.net.relutype = 'leaky'; % relu | clipped | leaky
@@ -119,14 +109,13 @@ function dest_info = update_info(defaults,src_info)
     config_lists = fieldnames(defaults);
     names = fieldnames(src_info);
     for i = 1:length(names)
-      if any(strcmp(names{i},config_lists)) % check if this is new item
-        eval_code = sprintf(...
+      if ~any(strcmp(names{i},config_lists)) % check if this is new item
+        warning('new configuration item %s added',names{i});
+      end
+      eval_code = sprintf(...
           'dest_info.%s = update_info(defaults.%s, src_info.%s); '...
           ,names{i},names{i},names{i});
         eval(eval_code);
-      else
-        warning('new configuration item %s added',names{i});
-      end
     end
   else
     dest_info = src_info;
@@ -147,7 +136,61 @@ function create_prj_folder(pathinfo,use_cache)
   end
 end
 
+function dest_info = update_path_info(src_info)
+  dest_info = src_info;
+  
+  noise_foldername = get_noise_foldername(dest_info.noise);
+  
+  dest_info.path.root = fullfile('Results',...
+    dest_info.net.type,...
+    noise_foldername,...
+    strcat('depth',num2str(dest_info.net.depth),'_width',num2str(dest_info.net.width),'_',dest_info.net.relutype),...
+    strcat(dest_info.train.solver),...
+    strcat('learnrate',num2str(dest_info.train.InitialLearnRate),'_drop',num2str(dest_info.train.LearnRateDropFactor),'_period',num2str(dest_info.train.LearnRateDropPeriod)),...
+    strcat('gradclip_',dest_info.train.GradientThresholdMethod,'_',num2str(dest_info.train.GradientThreshold)));
+  
+  dest_info.path.Checkpoint = fullfile(dest_info.path.root,'Checkpoints');
+  
+  dest_info.path.results = structfun(@(x)get_result_path(x,dest_info.path.root), dest_info.path.test,'UniformOutput',false);
+  
+  dest_info.prefix.net = fullfile(dest_info.path.Checkpoint,'epoch_');
+
+  dest_info.path.log.performance = fullfile(dest_info.path.root,'performance.txt');
+  
+  dest_info.path.log.training = fullfile(dest_info.path.root,'training.txt');
+end
+
+
 function result_path = get_result_path(datapath,rootpath)
   [~,dataname] = fileparts(datapath);
   result_path = fullfile(rootpath,'imgs',dataname);
+end
+
+
+function noise_foldername = get_noise_foldername(noiseinfo)
+  switch string(noiseinfo.type)
+    case "gaussian"
+      noise_foldername = strcat(noiseinfo.type,'_std',num2str(noiseinfo.std));
+    case "impulse"
+      if numel(noiseinfo.ValueRange) == 2
+        noise_foldername = strcat('salt&pepper_density',num2str(noiseinfo.Density));
+      else
+        noise_foldername = strcat('random_impulse_density',num2str(noiseinfo.Density));
+      end
+    otherwise
+      error('Training:train_network','Unsupported noise type, should be : gaussian, impulse');
+  end
+end
+
+function dest_info = reduce_noise_info(src_info)
+  dest_info.type = src_info.type;
+  switch string(src_info.type)
+    case "gaussian"
+      dest_info.std = src_info.std;
+    case "impulse"
+      dest_info.Density = src_info.Density;
+      dest_info.ValueRange = src_info.ValueRange;
+    otherwise
+      error('Training:train_network','Unsupported noise type, should be : gaussian, impulse');
+  end
 end

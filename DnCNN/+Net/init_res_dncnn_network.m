@@ -1,5 +1,6 @@
-function lgraph = init_dncnn_network(image_size,varargin)
+function lgraph = init_res_dncnn_network(image_size,varargin)
     % Initialize the layers of DnCNN network proposed by [1]
+    % with architecture replaced by resnet
     %
     % Return:
     %   lgraph:  nnet.cnn.LayerGraph
@@ -41,7 +42,6 @@ function lgraph = init_dncnn_network(image_size,varargin)
     %   [3] Simonyan, K., & Zisserman, A. (2014). Very Deep Convolutional Networks for Large-Scale Image Recognition, 1–14. https://doi.org/10.1016/j.infsof.2008.09.005
     
     
-    
     % global settings -- no need to change unless necessary
     conv_size = [3,3]; % size of convolutional kernel
     crelu_ceil = 10; % threshold of clipped ReLU layer
@@ -70,11 +70,8 @@ function lgraph = init_dncnn_network(image_size,varargin)
       case "mse"
         get_regressionlayer = @() regressionLayer;
         options.loss_function = 'mse_reg'; % for create layer name
-      case "ssim"
-        get_regressionlayer = @() Net.Layer.SSIMRegressionLayer(options.ssim_sigma);
-        options.loss_function = 'ssim_reg';
       otherwise
-        err_msg = 'loss_function should be one of the following: "mse, SSIM"';
+        err_msg = 'loss_function should be one of the following: "mse"';
         error(msgID,err_msg);
     end
     
@@ -86,66 +83,56 @@ function lgraph = init_dncnn_network(image_size,varargin)
     
     
     % define layers
-    % input layer
+    % input
 %     input_layer = imageInputLayer(image_size,...
 %       'Normalization','zerocenter');
     input_layer = imageInputLayer(image_size,...
       'Normalization','none');
-
-    % Layer type 1: conv+ReLu
-    L1 = [...
-        convolution2dLayer(conv_size,net_width,...
-            'NumChannels',num_color_channels,...
-            'Padding','same');...
-        get_relulayer()];
-    L1(1).Weights = randn([conv_size,num_color_channels,net_width]) .* sqrt(2/(prod(conv_size)*net_width));
-    L1(1).Bias = zeros([1,1,net_width]);
-    
-    % Layer type 2: conv+BN+ReLu
-    L2 = [...
-        convolution2dLayer(conv_size,net_width,...
-            'NumChannels',net_width,...
-            'Padding','same');...
-        batchNormalizationLayer();...
-        get_relulayer()];
-    L2(1).Weights = randn([conv_size,net_width,net_width]) .*sqrt(2/(prod(conv_size)*net_width));
-    L2(1).Bias = zeros([1,1,net_width]);
-    
-    % Layer type 3: conv
-    L3 = convolution2dLayer(conv_size,num_color_channels,...
-            'NumChannels',net_width,...
-            'Padding','same');
-    L3(1).Weights = randn([conv_size,net_width,num_color_channels]) .*sqrt(2/(prod(conv_size)*net_width));
-    L3(1).Bias = zeros([1,1,num_color_channels]);
+    % res block
+    res_layers = get_res_layers(conv_size,net_width,get_relulayer);
+    % output
+    output_layer = [...
+      convolution2dLayer(conv_size,num_color_channels,...
+                'NumChannels',net_width,...
+                'Padding','same');...
+      get_regressionlayer()];
     
     
-    
-    % initializing network
-    num_L2 = net_depth-2;
+    % build up layers
+    num_res = (net_depth - 1)/2;
     layers = [...
-        input_layer;...
-        L1;...
-        repmat(L2, num_L2,1);...
-        L3;...
-        get_regressionlayer()];
-      
-    % add layer names
+      input_layer;...
+      repmat(res_layers,num_res,1);...
+      output_layer;];
+
+
+    % add layer names in order to create layerGraph
     layers(1).Name = 'input';
-    layers(2).Name = 'conv1';
-    layers(3).Name = strcat(options.relu_type,'2');
-    begin_idx = length(input_layer) + length(L1);
-    end_idx = begin_idx + num_L2*length(L2);
-    for i = 1:num_L2
-      cur_idx = begin_idx + (i-1)*length(L2) + 1;
+    begin_idx = length(input_layer) + 1;
+    end_idx = begin_idx + num_res*length(res_layers);
+    for i = 1:num_res
+      cur_idx = begin_idx + (i-1)*length(res_layers);
       layers(cur_idx).Name = strcat('conv',num2str(cur_idx));
       layers(cur_idx+1).Name = strcat('bn',num2str(cur_idx+1));
       layers(cur_idx+2).Name = strcat(options.relu_type,num2str(cur_idx+2));
+      layers(cur_idx+3).Name = strcat('conv',num2str(cur_idx+3));
+      layers(cur_idx+4).Name = strcat('add',num2str(cur_idx+4));
+      layers(cur_idx+5).Name = strcat('bn',num2str(cur_idx+5));
+      layers(cur_idx+6).Name = strcat(options.relu_type,num2str(cur_idx+6));
     end
-    layers(end_idx+1).Name = strcat('conv',num2str(end_idx+1));
+    layers(end_idx).Name = strcat('conv',num2str(end_idx));
+    layers(end).Name = options.loss_function;
     
-    layers(end).Name = strcat(options.loss_function);
-    
+    % create layerGraph in order to make skip connection
     lgraph = layerGraph(layers);
+    
+    % connect layers
+    for i = 1:num_res
+      cur_idx = begin_idx + (i-1)*length(res_layers);
+      lgraph = connectLayers(lgraph,layers(cur_idx).Name,strcat(layers(cur_idx+4).Name,'/in2'));
+    end
+    
+    
 end
 
 function options = parse_input(varargin)
@@ -154,20 +141,18 @@ function options = parse_input(varargin)
     defaults.net_width = 64;
     defaults.relu_type = 'relu';
     defaults.loss_function = 'mse';
-    
 
     % add inputs constrain
     p = inputParser();
     p.addRequired('image_size',@isnumeric);
     p.addParameter('net_depth',defaults.net_depth,...
-      @(x)validateattributes(x,{'numeric'},{'>=',2}));
+      @(x)validateattributes(x,{'numeric','odd'},{'>=',2}));
     p.addParameter('net_width',defaults.net_width,...
       @(x)validateattributes(x,{'numeric'},{'>=',1}));
     p.addParameter('relu_type',defaults.relu_type,...
       @(x)any(validatestring(x,{'relu','leaky','clipped'})));
     p.addParameter('loss_function',defaults.loss_function,...
-      @(x)any(validatestring(x,{'mse','ssim'})));
-    p.addParameter('ssim_sigma',5,@isnumeric);
+      @(x)any(validatestring(x,{'mse'})));
     
     
     % parse and deal inputs
@@ -187,4 +172,29 @@ function options = parse_input(varargin)
         err_msg = 'image_size should be row vector of three integer values';
         error(msgID,err_msg);
     end
+end
+
+function res_layers = get_res_layers(conv_size,net_width,varargin)
+  p = inputParser;
+  p.addOptional('get_relu_func',reluLayer);
+  p.parse(varargin{:});
+  get_relulayer = p.Results.get_relu_func;
+  
+  res_layers = [...
+        convolution2dLayer(conv_size,net_width,...
+            'NumChannels',net_width,...
+            'Padding','same');...
+        batchNormalizationLayer();...
+        get_relulayer();
+        convolution2dLayer(conv_size,net_width,...
+            'NumChannels',net_width,...
+            'Padding','same');...
+        additionLayer(2);...
+        batchNormalizationLayer();...
+        get_relulayer();];
+
+  res_layers(1).Weights = randn([conv_size,net_width,net_width]) .*sqrt(2/(prod(conv_size)*net_width));
+  res_layers(1).Bias = zeros([1,1,net_width]);
+  res_layers(4).Weights = randn([conv_size,net_width,net_width]) .*sqrt(2/(prod(conv_size)*net_width));
+  res_layers(4).Bias = zeros([1,1,net_width]);
 end
