@@ -14,10 +14,10 @@ classdef ClippedRegressionLayer < nnet.layer.RegressionLayer
       function layer = ClippedRegressionLayer(varargin)
             
         p = inputParser();
-        p.addOptional('Threshold',0.005);
-        p.addOptional('Name','',@isstring);
-        p.addOptional('Description','ClippedRegressionLayer',@isstring);
-        p.addOptional('Type','ClippedRegressionLayer',@isstring);
+        p.addParameter('Threshold',0.005);
+        p.addParameter('Name','',@isstring);
+        p.addParameter('Description','ClippedRegressionLayer',@isstring);
+        p.addParameter('Type','ClippedRegressionLayer',@isstring);
         p.parse(varargin{:});
 
 
