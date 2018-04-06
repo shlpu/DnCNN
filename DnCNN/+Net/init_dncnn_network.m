@@ -23,6 +23,7 @@ function lgraph = init_dncnn_network(image_size,varargin)
     %   loss_function: (Parameter) char vector | string
     %     Using specific loss function for regression layer
     %       'mse'(default)     -- mean-squared-error
+    %       'ssim'             -- structure similarity index
     %
     % Usage:
     %   Net.DnCNN_init_model(image_size)

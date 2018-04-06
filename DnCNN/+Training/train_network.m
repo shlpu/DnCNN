@@ -97,7 +97,7 @@ function imds = load_training_datastore(datapath,imdsinfo,noiseinfo,varargin)
   
   imds = imageDatastore(datapath,...
     'IncludeSubfolders',true,...
-    'FileExtensions',{'.jpg','.png','.bmp'});
+    'FileExtensions',{'.jpg','.png','.bmp','.jpeg'});
   tmp = imds.preview();
   switch size(tmp,3)
     case 1
