@@ -1,6 +1,4 @@
 datapath = fullfile('Data','Train400');
-ori_img = imread(fullfile(datapath,'test_001.png'));
-% figure,imshow(ori_img)
 
 imds = imageDatastore(datapath);
 img_augmenter = imageDataAugmenter( ...

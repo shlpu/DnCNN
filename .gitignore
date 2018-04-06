@@ -1,7 +1,6 @@
 *.DS_Store
 ._*
 latest_net.mat
-backupcodes
 DnCNN/Results*
 error.txt
 nohup*
