@@ -60,7 +60,6 @@ classdef (Abstract) noiseImageDatastore < ...
       NumberOfChannels
       MiniBatchSizeInternal
       OrderedIndices
-      augmentOutputSize
     end
         
     methods
@@ -140,9 +139,6 @@ classdef (Abstract) noiseImageDatastore < ...
 
         self.imds = imds.copy(); % Don't mess with state of imds input
         self.ImageAugmenter = options.DataAugmentation;
-        
-        tmp_img = imds.preview();
-        self.augmentOutputSize = [size(tmp_img,1),size(tmp_img,2)];
         
         self.DispatchInBackground = options.DispatchInBackground;
         self.MiniBatchSize = 128;
@@ -355,28 +351,6 @@ classdef (Abstract) noiseImageDatastore < ...
 
     methods (Access = private) % copied from augmentedImageDatasotre.m
         
-        function determineExpectedaugmentOutputSize(self)
-            
-            % If a user specifies a ColorPreprocessing option, we know the
-            % number of channels to expect in each mini-batch. If they
-            % don't specify a ColorPreprocessing option, we need to look at
-            % an example from the underlying datastore and assume all
-            % images will have a consistent number of channels when forming
-            % mini-batches.
-
-            origMiniBatchSize = self.MiniBatchSize;
-            self.imds.MiniBatchSize = 1;
-            X = self.imds.read();
-            if iscell(X)
-                X = X{1};
-            end
-            self.imds.MiniBatchSize = origMiniBatchSize;
-            self.imds.reset();
-            exampleNumChannels = size(X,3);
-            self.NumberOfChannels = [self.augmentOutputSize,exampleNumChannels];
-            
-        end
-        
         function Xout = applyAugmentationPipelineToBatch(self,X)
             if iscell(X)
                 Xout = cellfun(@(c) self.applyAugmentationPipeline(c),X,'UniformOutput',false);
@@ -384,15 +358,13 @@ classdef (Abstract) noiseImageDatastore < ...
                 batchSize = size(X,4);
                 Xout = cell(batchSize,1);
                 for obs = 1:batchSize
-                    temp = self.augmentData(X(:,:,:,obs));
-                    Xout{obs} = self.resizeData(temp);
+                    Xout{obs} = self.augmentData(X(:,:,:,obs));
                 end
             end
         end
         
         function Xout = applyAugmentationPipeline(self,X)
-            temp = self.augmentData(X);
-            Xout = self.resizeData(temp);
+            Xout = self.augmentData(X);
         end
         
         function miniBatchData = augmentData(self,miniBatchData)
@@ -401,58 +373,6 @@ classdef (Abstract) noiseImageDatastore < ...
             end
         end
         
-        function Xout = resizeData(self,X)
-            
-            inputSize = size(X);
-            if isequal(inputSize(1:2),self.augmentOutputSize)
-                Xout = X; % no-op if X is already desired augmentOutputSize
-                return
-            end
-
-            Xout = noiseImageDatastore.randCrop(X,self.augmentOutputSize);
-        end
-        
-    end
-    
-    methods (Hidden, Static)
-      function rect = randCropRect(im,augmentOutputSize)
-        % Pick random coordinates within the image bounds
-        % for the top-left corner of the cropping rectangle.
-        range_x = size(im,2) - augmentOutputSize(2);
-        range_y = size(im,1) - augmentOutputSize(1);
-
-        x = range_x * rand;
-        y = range_y * rand;
-        rect = [x y augmentOutputSize(2), augmentOutputSize(1)];
-      end
-
-      function im = randCrop(im,augmentOutputSize)
-        sizeInput = size(im);
-        if any(sizeInput(1:2) < augmentOutputSize)
-          error(message('nnet_cnn:augmentedImageDatastore:invalidCropaugmentOutputSize','''augmentOutputSizeMode''',mfilename, '''randcrop''','''augmentOutputSize'''));
-        end
-        rect = noiseImageDatastore.randCropRect(im,augmentOutputSize);
-        im = noiseImageDatastore.crop(im,rect);
-      end
-
-      function B = crop(A,rect)
-        % rect is [x y width height] in floating point.
-        % Convert from (x,y) real coordinates to [m,n] indices.
-        rect = floor(rect);
-
-        m1 = rect(2) + 1;
-        m2 = rect(2) + rect(4);
-
-        n1 = rect(1) + 1;
-        n2 = rect(1) + rect(3);
-
-        m1 = min(size(A,1),max(1,m1));
-        m2 = min(size(A,1),max(1,m2));
-        n1 = min(size(A,2),max(1,n1));
-        n2 = min(size(A,2),max(1,n2));
-
-        B = A(m1:m2, n1:n2, :, :);
-      end
     end
 end
 
