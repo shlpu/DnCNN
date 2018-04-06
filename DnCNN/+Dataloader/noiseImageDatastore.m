@@ -402,7 +402,8 @@ parser.parse(varargin{:});
 options = manageDispatchInBackgroundNameValue(parser);
 
 if options.DispatchInBackground
-  warning('Matlab:bug','Dispatch in background may throw unexpected error calling cuDNN: CUDNN_STATUS_BAD_PARAM in Matlab R2018a');
+  error('Matlab:bug','Dispatch in background is not properly supported yet');
+%   error('Matlab:bug','Dispatch in background may throw unexpected error calling cuDNN: CUDNN_STATUS_BAD_PARAM in Matlab R2018a');
 end
 validOptions = {'rgb','grayscale'};
 options.ChannelFormat = validatestring(options.ChannelFormat,validOptions, ...

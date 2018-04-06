@@ -38,7 +38,7 @@ function net = train_network(prj)
     otherwise
       error('Training:train_network','networktype invalid');
   end
-  net.Layers = init_network(prj.imds.PatchSize,...
+  lgraph = init_network(prj.imds.PatchSize,...
     'net_depth',prj.net.depth,...
     'net_width',prj.net.width,...
     'relu_type',prj.net.relutype,...
@@ -53,14 +53,15 @@ function net = train_network(prj)
     % read trained cache if exists
     cur_cache_net = strcat(prj.prefix.net,num2str(i),'.mat');
     if exist(cur_cache_net,'file')
-      load(cur_cache_net,'net');
+      net = Utilities.load_net(cur_cache_net,'net');
     else
       if i >= 2
-        next_cache_net = strcat(prj.prefix.net,num2str(i-1),'.mat');
-        if ~exist(next_cache_net,'file')
-          error(msgID,[next_cache_net,' missing']);
+        last_cache_net = strcat(prj.prefix.net,num2str(i-1),'.mat');
+        if ~exist(last_cache_net,'file')
+          error(msgID,[last_cache_net,' missing']);
         end
-        net = Utilities.load_net(next_cache_net,'net');
+        net = Utilities.load_net(last_cache_net,'net');
+        lgraph = layerGraph(net);
       end
       
       % set training option
@@ -75,8 +76,8 @@ function net = train_network(prj)
         'ExecutionEnvironment','gpu',...
         'Verbose',prj.train.Verbose,...
         'VerboseFrequency',prj.train.VerboseFrequency);
-
-      net = trainNetwork(imds, net.Layers, training_opts);
+      
+      net = trainNetwork(imds, lgraph, training_opts);
       save(strcat(prj.prefix.net,num2str(i)),'net');
     end
     
