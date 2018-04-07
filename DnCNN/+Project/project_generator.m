@@ -36,7 +36,7 @@ function prj = project_generator(src_prj,varargin)
   
   % prevent a bug introduced by R2018a
   if ~mod(prj.imds.PatchesPerImage, prj.train.MiniBatchSize) == 0
-    error('MATLAB:bug','PatchesPerImage should be divided by MiniBatchSize');
+    warning('MATLAB:bug','PatchesPerImage should be divided by MiniBatchSize');
   end
   
   % update project information

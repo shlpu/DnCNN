@@ -2,6 +2,7 @@
 ._*
 latest_net.mat
 DnCNN/Results*
+Data
 error.txt
 nohup*
 *.m~

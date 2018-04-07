@@ -1,6 +1,6 @@
-function net = run_project(opts)
+function net = run_project(opts,varargin)
   % project pipline
-  opts = Project.project_generator(opts);
+  opts = Project.project_generator(opts,varargin{:});
   logfile = opts.path.log.training;
   start_time = datetime;
   Logging.print_line(string(start_time),'logfile',logfile);
