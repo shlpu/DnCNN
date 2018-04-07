@@ -68,7 +68,7 @@ classdef GaussianNoiseImageDatastore < Dataloader.noiseImageDatastore
   end
   
   methods(Access = protected)
-    function [noisyPatch,residualNoise] = generateNoise(self,cleanPatch)
+    function [input,response] = generateNoise(self,cleanPatch)
       isNoiseRange = (numel(self.GaussianNoiseLevel) == 2);
       
       if isNoiseRange
@@ -79,7 +79,12 @@ classdef GaussianNoiseImageDatastore < Dataloader.noiseImageDatastore
       end
       
       residualNoise = noiseSigma * randn(self.PatchSize,'single');
-      noisyPatch = cleanPatch + residualNoise;
+      input = cleanPatch + residualNoise;
+      
+%       % learn residual
+%       response = residualNoise;
+      % learn clean image
+      response = cleanPatch;
     end
   end
   
@@ -88,17 +93,17 @@ end
 
 function B = validateGaussianNoiseLevel(GaussianNoiseLevel)
 
-supportedClasses = {'single','double'};
-attributes = {'nonempty','real','vector', ...
+  supportedClasses = {'single','double'};
+  attributes = {'nonempty','real','vector', ...
     'nonnegative','finite','nonsparse','nonnan','nonzero','>=',0,'<=',1};
 
-validateattributes(GaussianNoiseLevel, supportedClasses, attributes,...
+  validateattributes(GaussianNoiseLevel, supportedClasses, attributes,...
     mfilename,'GaussianNoiseLevel');
 
-if numel(GaussianNoiseLevel) > 2
+  if numel(GaussianNoiseLevel) > 2
     error(message('Dataloader:GaussianNoiseImageDatastore:invalidGaussianNoiseLevel'));
-end
+  end
 
-B = true;
+  B = true;
 
 end

@@ -70,9 +70,13 @@ else
 end
 
 numLayers = size(net.Layers,1);
-res = activations(net,inputImage,net.Layers(numLayers-1).Name,'OutputAs','channels');
 
-I = inputImage - res;
+% learn residual
+% res = activations(net,inputImage,net.Layers(numLayers-1).Name,'OutputAs','channels');
+% I = inputImage - res;
+
+% learn clean image
+I = activations(net,inputImage,net.Layers(numLayers-1).Name,'OutputAs','channels');
 
 if isinteger(A)   
     I = cast(double(intmax(classOfA))*I,classOfA);

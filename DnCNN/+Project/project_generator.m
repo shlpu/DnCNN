@@ -78,7 +78,7 @@ function defaults = get_defaults()
   prj.net.width = 64;
   prj.net.relutype = 'leaky'; % relu | clipped | leaky
   prj.net.loss_function = 'mse'; % mse 
-  prj.net.ssim_sigma = 5;
+  prj.net.ssim_sigma = 1.5;
 
   
   % training setting

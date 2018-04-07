@@ -334,10 +334,10 @@ classdef (Abstract) noiseImageDatastore < ...
                     patch = im(rowLocations(index):rowLocations(index)+actualPatchSize(1)-1,...
                         colLocations(index):colLocations(index)+actualPatchSize(2)-1, :);
                       
-                    [noisyPatch,residualNoise] = self.generateNoise(patch);
+                    [input,response] = self.generateNoise(patch);
                     
-                    Y{count} = residualNoise;
-                    X{count} = noisyPatch;
+                    Y{count} = response;
+                    X{count} = input;
                     count = count + 1;
                 end
             end
@@ -346,7 +346,7 @@ classdef (Abstract) noiseImageDatastore < ...
     end
     
     methods(Abstract, Access = protected)
-      [noisyPatch,residualNoise] = generateNoise(self,cleanPatch)
+      [input,response] = generateNoise(self,cleanPatch)
     end
 
     methods (Access = private) % copied from augmentedImageDatasotre.m
